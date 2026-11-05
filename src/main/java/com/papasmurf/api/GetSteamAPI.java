@@ -49,11 +49,13 @@ public class GetSteamAPI {
 
     public Players get_profile(String profileID){
 
+        System.out.println(profileID);
         String url = String.format(
             "https://api.steampowered.com/ISteamUser/GetPlayerSummaries/v2/?key=%s&steamids=%s", 
             API, profileID
         );
 
+        System.out.println(url);
         try {
             HttpClient client = HttpClient.newHttpClient();
             HttpRequest request = HttpRequest.newBuilder()
@@ -64,7 +66,7 @@ public class GetSteamAPI {
             HttpResponse<String> response = client.send(request, HttpResponse.BodyHandlers.ofString());
 
             if (response.statusCode() == 200) {
-                System.out.println("Успешный ответ от Steam API:");
+                System.out.println("Успешный ответ от Steam API: профиль получен");
                 // System.out.println(response.body());
 
                 Gson gson = new Gson();
@@ -73,7 +75,7 @@ public class GetSteamAPI {
                 List<Players> players = parsed.response.players;
                 Players player = players.get(0);
 
-                // System.out.println(player);
+                // System.out.println(player.avatar + " " + player.personaname);
 
                 return player;
                 
@@ -103,7 +105,7 @@ public class GetSteamAPI {
             HttpResponse<String> response = client.send(request, HttpResponse.BodyHandlers.ofString());
 
             if (response.statusCode() == 200) {
-                System.out.println("Успешный ответ от Steam API:");
+                System.out.println("Успешный ответ от Steam API: друзья получены");
                 // System.out.println(response.body());
 
                 Gson gson = new Gson();
