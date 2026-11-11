@@ -8,10 +8,15 @@ public class Main {
 
         Analizer v = new Analizer();
 
-        v.checkProfile("https://steamcommunity.com/profiles/76561198890900243/");
+        
+        // https://steamcommunity.com/profiles/76561198890900243/ - пример не смурфа
+        // https://steamcommunity.com/profiles/76561198669833133 - пример смурфа
+        // https://steamcommunity.com/profiles/76561198740323709
 
-        // a.addSteamProfile("76561198669833133",  0, 2);
+        System.out.println(v.checkProfile("https://steamcommunity.com/profiles/76561198890900243/"));
 
-        // a.showGraph();
+        a.addSteamProfile("76561198740323709",  0, 2);
+
+        a.showGraph();
     }
 }

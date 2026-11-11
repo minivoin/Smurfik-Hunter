@@ -1,6 +1,4 @@
 package com.papasmurf;
-import java.io.FileWriter;
-import java.io.Writer;
 import java.time.Instant;
 import java.time.temporal.ChronoUnit;
 import java.util.HashMap;
@@ -17,10 +15,7 @@ import org.jgrapht.graph.DefaultEdge;
 import org.jgrapht.graph.DefaultUndirectedGraph;
 
 import com.mxgraph.layout.mxCircleLayout;
-import com.mxgraph.layout.mxOrganicLayout;
-import com.mxgraph.layout.hierarchical.mxHierarchicalLayout;
 import com.mxgraph.swing.mxGraphComponent;
-import com.mxgraph.layout.mxCompactTreeLayout;
 
 
 import com.papasmurf.api.GetSteamAPI;
@@ -39,49 +34,6 @@ public class SteamGraphBuilder {
     // graph.addVertex(steamId); // Добавляем точку в граф
     // playerData.put(steamId); 
 
-    public boolean isSuspect(String steamid){
-        Players player = geter.get_profile(steamid);
-        int finalSum = 0;
-
-        if (player.communityvisibilitystate == 1){
-            return false;
-        }
-        List<Friend> friendsList = geter.get_friendList(steamid);
-
-        Instant createdDate = Instant.ofEpochSecond(player.timecreated);
-
-        long days = ChronoUnit.DAYS.between(createdDate, Instant.now());
-        long months = days / 30;
-
-
-        if (months < 36){
-            int MAX_SCORE = 50;
-            int MAX_AGE_MONTHS = 36; // Аккаунты старше 3 лет (36 мес) получают 0 очков
-
-            double score = MAX_SCORE - (months * MAX_SCORE) / (double) MAX_AGE_MONTHS;
-
-            finalSum += score;
-        }
-
-        if (friendsList != null){
-            if (friendsList.size() < 7){
-                finalSum += 30;
-            }else if (friendsList.size() > 150){
-                finalSum += 15;
-            }
-        }
-
-        if (player.avatar.equals("https://avatars.steamstatic.com/fef49e7fa7e1997310d705b2a6158ff8dc1cdfeb.jpg")){
-            finalSum += 20;
-        }
-
-        // System.out.println(finalSum);
-        if (finalSum >= 60){
-            return true;
-        }else{
-            return false;
-        }
-    }
 
     public void addSteamProfile(String steamid, int depth, int maxDepth){
         if (depth >= maxDepth){
