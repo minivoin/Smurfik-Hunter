@@ -1,0 +1,10 @@
+version: '3.8'
+
+services:
+  smurf-hunter:
+    build: .
+    container_name: smurf-hunter
+    env_file:
+      - .env
+    stdin_open: true   # Позволяет вводить данные (если нужно)
+    tty: true  

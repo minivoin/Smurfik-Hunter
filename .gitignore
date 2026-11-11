@@ -1,3 +1,25 @@
+# Maven
 target/
+*.jar
+*.class
+
+# IDE
 .vscode/
+.idea/
+*.iml
+*.ipr
+*.iws
+
+# Environment variables (ВАЖНО!)
 .env
+.env.local
+.env.*.local
+
+# Docker (только собранные образы, НЕ Dockerfile!)
+*.tar
+*.tar.gz
+docker-compose.override.yml
+
+# OS
+.DS_Store
+Thumbs.db
