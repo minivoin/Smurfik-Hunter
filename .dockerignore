@@ -1,7 +1,0 @@
-target/
-.vscode/
-.git/
-.gitignore
-*.iml
-.idea/
-README.md

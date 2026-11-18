@@ -49,13 +49,13 @@ public class GetSteamAPI {
 
     public Players get_profile(String profileID){
 
-        System.out.println(profileID);
+        // System.out.println(profileID);
         String url = String.format(
             "https://api.steampowered.com/ISteamUser/GetPlayerSummaries/v2/?key=%s&steamids=%s", 
             API, profileID
         );
 
-        System.out.println(url);
+        // System.out.println(url);
         try {
             HttpClient client = HttpClient.newHttpClient();
             HttpRequest request = HttpRequest.newBuilder()

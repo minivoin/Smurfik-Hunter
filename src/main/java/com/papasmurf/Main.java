@@ -1,7 +1,5 @@
 package com.papasmurf;
 
-import java.util.Scanner;
-
 public class Main {
     public static void main(String[] args){
 
@@ -9,20 +7,15 @@ public class Main {
 
         Analizer v = new Analizer();
 
-        
         // https://steamcommunity.com/profiles/76561198890900243/ - пример не смурфа
         // https://steamcommunity.com/profiles/76561198669833133 - пример смурфа
         // https://steamcommunity.com/profiles/76561198740323709
+        // https://steamcommunity.com/profiles/76561199215017110 - без аватарки
 
+        a.addSteamProfile("76561198669833133", 0, 2);
 
-        Scanner scan = new Scanner(System.in);
+        // a.exportCSV();
 
-        System.out.println("Вставтеь ссылку на Steam профиль");
-
-        String steamURL = scan.nextLine();
-
-        System.out.println(v.checkProfile(steamURL));
-
-        scan.close();
+        System.out.println(v.checkProfile("https://steamcommunity.com/profiles/76561198669833133"));
     }
 }

@@ -1,6 +1,4 @@
 package com.papasmurf;
-import java.time.Instant;
-import java.time.temporal.ChronoUnit;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
@@ -13,6 +11,10 @@ import org.jgrapht.Graph;
 import org.jgrapht.ext.JGraphXAdapter;
 import org.jgrapht.graph.DefaultEdge;
 import org.jgrapht.graph.DefaultUndirectedGraph;
+import org.jgrapht.nio.csv.CSVExporter;
+import org.jgrapht.nio.csv.CSVFormat;
+import java.io.File;
+
 
 import com.mxgraph.layout.mxCircleLayout;
 import com.mxgraph.swing.mxGraphComponent;
@@ -93,5 +95,16 @@ public class SteamGraphBuilder {
         frame.setVisible(true);
 
         component.zoomTo(0.4, true);
-        }
+    }
+
+    public void exportCSV(){
+        CSVExporter<String, DefaultEdge> exporter = new CSVExporter<>(CSVFormat.EDGE_LIST);
+        
+        // Указываем, как получать ID вершины (по умолчанию используется toString())
+        exporter.setVertexIdProvider(vertex -> vertex);
+        
+        // Сохраняем в файл
+        exporter.exportGraph(graph, new File("edges.csv"));
+    }
+
 }

@@ -169,5 +169,4 @@ public class Analizer {
 
         return details.toString();
     }
-
 }
