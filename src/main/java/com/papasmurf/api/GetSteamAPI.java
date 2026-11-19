@@ -5,15 +5,19 @@ import java.io.BufferedReader;
 import java.io.FileReader;
 import java.io.IOException;
 import java.net.URI;
+import java.net.URLEncoder;
 import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
+import java.nio.charset.StandardCharsets;
 // import java.time.Instant;
 // import java.time.LocalDate;
 // import java.time.ZoneId;
 import java.util.List;
 
 import com.google.gson.Gson;
+import com.google.gson.JsonObject;
+import com.google.gson.JsonParser;
 import com.papasmurf.api.dto.Friend;
 import com.papasmurf.api.dto.FriendsResponse;
 import com.papasmurf.api.dto.Players;
@@ -23,8 +27,28 @@ public class GetSteamAPI {
 
     private String API;
 
+    /** Один клиент на всё приложение: переиспользует соединения и TLS-сессии. */
+    private static final HttpClient CLIENT = HttpClient.newHttpClient();
+
+    /** Минимальный интервал между запросами: Steam не любит чаще ~1 раза в секунду. */
+    private static final long MIN_REQUEST_INTERVAL_MS = 800;
+    private static long lastRequestAt = 0L;
+
     public GetSteamAPI(){
         this.API = loadEnv("STEAM_API_KEY");
+    }
+
+    /** Простой троттлинг, чтобы не получить 429 и временный бан ключа. */
+    private static synchronized void throttle() {
+        long wait = lastRequestAt + MIN_REQUEST_INTERVAL_MS - System.currentTimeMillis();
+        if (wait > 0) {
+            try {
+                Thread.sleep(wait);
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+            }
+        }
+        lastRequestAt = System.currentTimeMillis();
     }
 
     private String loadEnv(String key) {
@@ -56,14 +80,14 @@ public class GetSteamAPI {
         );
 
         // System.out.println(url);
+        throttle();
         try {
-            HttpClient client = HttpClient.newHttpClient();
             HttpRequest request = HttpRequest.newBuilder()
                     .uri(URI.create(url))
                     .GET()
                     .build();
 
-            HttpResponse<String> response = client.send(request, HttpResponse.BodyHandlers.ofString());
+            HttpResponse<String> response = CLIENT.send(request, HttpResponse.BodyHandlers.ofString());
 
             if (response.statusCode() == 200) {
                 System.out.println("Успешный ответ от Steam API: профиль получен");
@@ -95,14 +119,14 @@ public class GetSteamAPI {
             API, profileID
         );
 
+        throttle();
         try {
-            HttpClient client = HttpClient.newHttpClient();
             HttpRequest request = HttpRequest.newBuilder()
                     .uri(URI.create(url))
                     .GET()
                     .build();
 
-            HttpResponse<String> response = client.send(request, HttpResponse.BodyHandlers.ofString());
+            HttpResponse<String> response = CLIENT.send(request, HttpResponse.BodyHandlers.ofString());
 
             if (response.statusCode() == 200) {
                 System.out.println("Успешный ответ от Steam API: друзья получены");
@@ -126,6 +150,49 @@ public class GetSteamAPI {
                 System.out.println("Ошибка! Статус-код сервера: " + response.statusCode());
                 return null;
             }
+        } catch (Exception e) {
+            e.printStackTrace();
+            return null;
+        }
+    }
+
+    /**
+     * Превращает красивое имя профиля (steamcommunity.com/id/имя) в SteamID64.
+     *
+     * Нужно для Discord-бота: людям проще скопировать ссылку на профиль, чем
+     * искать 17-значный номер. Steam возвращает {@code success=1} и сам id,
+     * либо {@code success=42}, если такого имени нет.
+     *
+     * @return SteamID64 или null, если имя не найдено / запрос не удался.
+     */
+    public String resolveVanity(String vanity) {
+        if (vanity == null || vanity.isBlank()) {
+            return null;
+        }
+        String url = String.format(
+            "https://api.steampowered.com/ISteamUser/ResolveVanityURL/v1/?key=%s&vanityurl=%s",
+            API, URLEncoder.encode(vanity.trim(), StandardCharsets.UTF_8)
+        );
+
+        throttle();
+        try {
+            HttpRequest request = HttpRequest.newBuilder()
+                    .uri(URI.create(url))
+                    .GET()
+                    .build();
+
+            HttpResponse<String> response = CLIENT.send(request, HttpResponse.BodyHandlers.ofString());
+            if (response.statusCode() != 200) {
+                System.out.println("Ошибка! Статус-код сервера: " + response.statusCode());
+                return null;
+            }
+
+            JsonObject root = JsonParser.parseString(response.body()).getAsJsonObject();
+            JsonObject data = root.getAsJsonObject("response");
+            if (data == null || data.get("success") == null || data.get("success").getAsInt() != 1) {
+                return null;
+            }
+            return data.get("steamid").getAsString();
         } catch (Exception e) {
             e.printStackTrace();
             return null;
