@@ -1,0 +1,12 @@
+# Docker и Linux-скрипты должны оставаться с LF: CRLF внутри контейнера
+# ломает RUN-команды и shebang.
+* text=auto
+Dockerfile text eol=lf
+*.Dockerfile text eol=lf
+*.yml text eol=lf
+*.yaml text eol=lf
+*.py text eol=lf
+*.sh text eol=lf
+
+# PowerShell-скрипты, наоборот, рассчитаны на Windows.
+*.ps1 text eol=crlf

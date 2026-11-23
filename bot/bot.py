@@ -100,6 +100,8 @@ class Config:
         self.guild_id = os.getenv("DISCORD_GUILD_ID", "").strip()
         # Читать ссылки из обычных сообщений (требует Message Content Intent).
         self.link_autodetect = env_flag("DISCORD_LINK_AUTODETECT", True)
+        # Сервис истории. Пусто = выключен: бот работает и без него.
+        self.history_base = os.getenv("HISTORY_BASE_URL", "").strip().rstrip("/")
 
 
 CONFIG = Config()
@@ -153,7 +155,7 @@ async def call_api(
         raise ApiError(
             "Сервер анализа не запущен или недоступен.\n"
             f"Адрес: {CONFIG.api_base}\n"
-            "Запустите его командой `powershell -ExecutionPolicy Bypass -File run-api.ps1`.",
+            "Запустите `docker compose up -d` или `powershell -ExecutionPolicy Bypass -File run-api.ps1`.",
             "UNREACHABLE",
         ) from error
 
@@ -168,6 +170,42 @@ async def call_related(
     return await call_api(
         session, "/api/v1/detect", {"steamId": profile, "depth": depth}, RELATED_TIMEOUT_SECONDS
     )
+
+
+async def save_history(
+    session: aiohttp.ClientSession, data: dict[str, Any], depth: int
+) -> None:
+    """Отправляет итог поиска в сервис истории.
+
+    История — вспомогательная функция: если сервис не запущен или упал, поиск
+    всё равно считается успешным, поэтому здесь нет ни ApiError, ни ответа
+    пользователю. Только предупреждение в лог.
+    """
+    if not CONFIG.history_base:
+        return
+
+    payload = {
+        "steamId": data.get("seed"),
+        "seedName": data.get("seedName"),
+        "depth": depth,
+        "group": data.get("group") or [],
+        "groupConfidence": float(data.get("groupConfidence") or 0.0),
+        "candidatesChecked": int(data.get("candidatesChecked") or 0),
+        "durationMs": int(data.get("durationMs") or 0),
+        "cached": bool(data.get("cached")),
+    }
+
+    try:
+        async with session.post(
+            f"{CONFIG.history_base}/api/v1/history",
+            json=payload,
+            timeout=aiohttp.ClientTimeout(total=5),
+        ) as response:
+            if response.status >= 300:
+                body = await response.text()
+                log.warning("История ответила кодом %s: %s", response.status, body[:200])
+    except Exception as error:
+        log.warning("Не удалось сохранить историю: %s", error)
 
 
 def _parse_json(body: str) -> dict[str, Any]:
@@ -456,6 +494,42 @@ def build_related_embeds(data: dict[str, Any]) -> list[discord.Embed]:
     return embeds[:MAX_EMBEDS]
 
 
+def history_embed(data: dict[str, Any]) -> discord.Embed:
+    """Карточка с последними проверками профиля из сервиса истории."""
+    steam_id = str(data.get("steamId") or "")
+    items = data.get("items") or []
+
+    embed = discord.Embed(
+        title="История проверок",
+        description=f"`{steam_id}`" if items else f"`{steam_id}`\nПроверок пока не было.",
+        url=profile_link(steam_id) if steam_id else None,
+        color=COLOR_MUTED,
+    )
+
+    for item in items[:10]:
+        checked = str(item.get("checkedAt") or "").replace("T", " ")[:16]
+        group_size = int(item.get("groupSize") or 0)
+        confidence = float(item.get("groupConfidence") or 0.0)
+        duration = float(item.get("durationMs") or 0) / 1000.0
+
+        parts = [f"группа: {group_size}"]
+        if group_size > 1:
+            parts[-1] += f" ({confidence:.2f})"
+        parts.append(f"кандидатов: {int(item.get('candidatesChecked') or 0)}")
+        parts.append(f"{duration:.0f} с" + (" (кеш)" if item.get("cached") else ""))
+        parts.append(f"глубина {int(item.get('depth') or 0)}")
+
+        embed.add_field(
+            name=truncate(checked or "без даты", FIELD_NAME_LIMIT),
+            value=" · ".join(parts),
+            inline=False,
+        )
+
+    if items:
+        embed.set_footer(text="Время указано в UTC · хранится в истории, а не в кеше Java")
+    return embed
+
+
 # ----------------------------------------------------------------------
 # Кнопка «искать смежные»
 # ----------------------------------------------------------------------
@@ -497,6 +571,7 @@ class RelatedView(discord.ui.View):
             return
 
         await placeholder.edit(content=None, embeds=build_related_embeds(data))
+        await save_history(session, data, 2)
 
 
 # ----------------------------------------------------------------------
@@ -511,6 +586,13 @@ session: aiohttp.ClientSession | None = None
 
 # Последний первичный анализ по ссылке из чата: user_id -> monotonic time.
 link_activity: dict[int, float] = {}
+
+
+def extract_steam_id(text: str) -> str | None:
+    """Достаёт SteamID64 из строки. Для красивого id/имя вернёт None: без Steam
+    такой ник в номер не превратить, а сервис истории хранит только номера."""
+    match = STEAM_ID_RE.search(text or "")
+    return match.group(0) if match else None
 
 
 def extract_profile(text: str) -> str | None:
@@ -564,6 +646,18 @@ async def on_ready() -> None:
             log.warning("Java-API не видит STEAM_API_KEY — анализ будет падать")
     except Exception:
         log.warning("Java-API недоступен по адресу %s. Запустите com.papasmurf.web.ApiServer", CONFIG.api_base)
+
+    if CONFIG.history_base:
+        try:
+            async with session.get(
+                f"{CONFIG.history_base}/health", timeout=aiohttp.ClientTimeout(total=5)
+            ) as response:
+                await response.json()
+            log.info("Сервис истории доступен: %s", CONFIG.history_base)
+        except Exception:
+            log.warning("Сервис истории недоступен: %s", CONFIG.history_base)
+    else:
+        log.info("Сервис истории отключён (HISTORY_BASE_URL не задан)")
 
 
 @client.event
@@ -667,6 +761,54 @@ async def related_command(
         return
 
     await interaction.edit_original_response(embeds=build_related_embeds(data))
+    await save_history(session, data, depth.value if depth else 2)
+
+
+@tree.command(name="history", description="Последние проверки профиля из сервиса истории")
+@app_commands.describe(profile="SteamID64 (17 цифр) или ссылка .../profiles/...")
+@app_commands.checks.cooldown(3, 10.0, key=lambda interaction: interaction.user.id)
+async def history_command(interaction: discord.Interaction, profile: str) -> None:
+    if not CONFIG.history_base:
+        await interaction.response.send_message(
+            "Сервис истории не подключён: задайте HISTORY_BASE_URL в .env.", ephemeral=True
+        )
+        return
+
+    steam_id = extract_steam_id(profile)
+    if steam_id is None:
+        await interaction.response.send_message(
+            "Нужен SteamID64 (17 цифр) или ссылка вида .../profiles/7656119…",
+            ephemeral=True,
+        )
+        return
+
+    await interaction.response.defer(thinking=True)
+    assert session is not None
+
+    url = f"{CONFIG.history_base}/api/v1/history"
+    try:
+        async with session.get(
+            url,
+            params={"steamId": steam_id, "limit": 10},
+            timeout=aiohttp.ClientTimeout(total=10),
+        ) as response:
+            data = await response.json(content_type=None)
+            if response.status != 200 or not data.get("ok"):
+                message = (data.get("error") or "").strip()
+                if not message:
+                    message = f"Сервис истории ответил кодом {response.status}."
+                await interaction.edit_original_response(embed=error_embed(message))
+                return
+    except Exception:
+        log.exception("Ошибка запроса истории для %s", steam_id)
+        await interaction.edit_original_response(
+            embed=error_embed(
+                "Сервис истории недоступен. Проверьте, что запущен контейнер history."
+            )
+        )
+        return
+
+    await interaction.edit_original_response(embeds=[history_embed(data)])
 
 
 @tree.error
@@ -698,6 +840,7 @@ async def main() -> None:
 
     print("Охотник на смурфиков: Discord-бот запускается")
     print(f"  Java-API: {CONFIG.api_base}")
+    print(f"  История: {CONFIG.history_base or 'выключена (HISTORY_BASE_URL не задан)'}")
     print(f"  Анализ ссылок из чата: {'вкл' if CONFIG.link_autodetect else 'выкл'}")
     try:
         async with client:

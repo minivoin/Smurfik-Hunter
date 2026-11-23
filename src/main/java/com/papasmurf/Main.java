@@ -1,4 +1,4 @@
-package com.papasmurf;
+﻿package com.papasmurf;
 
 import com.papasmurf.detect.DetectionResult;
 import com.papasmurf.detect.SamePersonDetector;

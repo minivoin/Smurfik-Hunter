@@ -51,7 +51,16 @@ public class GetSteamAPI {
         lastRequestAt = System.currentTimeMillis();
     }
 
+    /**
+     * Ключ берётся из переменной окружения, а если её нет — из .env рядом с
+     * процессом. В Docker .env в образ не копируется (это секрет), значения
+     * приходят из docker-compose, поэтому окружение проверяется первым.
+     */
     private String loadEnv(String key) {
+        String fromEnv = System.getenv(key);
+        if (fromEnv != null && !fromEnv.isBlank()) {
+            return fromEnv.trim();
+        }
         try (BufferedReader reader = new BufferedReader(new FileReader(".env"))) {
             String line;
             while ((line = reader.readLine()) != null) {

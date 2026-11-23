@@ -1,0 +1,103 @@
+# Запуск всего проекта одной командой:
+#
+#   docker compose up --build -d
+#
+# .env остаётся на хосте: compose читает его и передаёт значения как переменные
+# окружения. В образ он не попадает — .env исключён в .dockerignore.
+#
+# Важно: ключи STEAM_API_KEY и DISCORD_TOKEN должны быть заполнены в .env,
+# иначе контейнеры поднимутся, но анализ и вход в Discord не заработают.
+
+services:
+  api:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: smurfik-hunter-api
+    container_name: smurfik-api
+
+    # Все переменные из .env: STEAM_API_KEY, API_HOST, ... — как есть.
+    env_file:
+      - .env
+    environment:
+      # Внутри контейнера сервер обязан слушать 0.0.0.0, иначе проброс порта
+      # снаружи не работает: 127.0.0.1 внутри контейнера — это он сам.
+      API_HOST: 0.0.0.0
+      API_PORT: "8080"
+
+    # Наружу только на loopback: у API нет авторизации, в локальную сеть его
+    # выставлять нельзя. Бот ходит по внутренней сети compose, порт ему не нужен.
+    ports:
+      - "127.0.0.1:8080:8080"
+
+    # healthcheck — это то, чего ждёт бот через depends_on.
+    # wget есть в alpine-образе из busybox, curl ставить не нужно.
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://127.0.0.1:8080/health"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 20s
+
+    restart: unless-stopped
+
+  bot:
+    build:
+      context: .
+      dockerfile: bot/Dockerfile
+    image: smurfik-hunter-bot
+    container_name: smurfik-bot
+
+    env_file:
+      - .env
+    environment:
+      # api — имя сервиса в сети compose. В .env указан 127.0.0.1:8080, но
+      # внутри контейнера бота это он сам, поэтому адрес переопределяется.
+      API_BASE_URL: http://api:8080
+      # history — третий сервис. Если он недоступен, бот продолжает работать,
+      # просто не сохраняет историю.
+      HISTORY_BASE_URL: http://history:8000
+
+    depends_on:
+      api:
+        # Бот стартует только когда API реально отвечает на /health,
+        # а не просто когда контейнер создан.
+        condition: service_healthy
+      history:
+        # История — вспомогательная: ждём только запуска контейнера, а не
+        # здоровья. Если база истории сломается, бот всё равно должен работать.
+        condition: service_started
+
+    restart: unless-stopped
+
+  history:
+    build:
+      context: .
+      dockerfile: history/Dockerfile
+    image: smurfik-hunter-history
+    container_name: smurfik-history
+
+    environment:
+      # SQLite на named volume: переживает перезапуски и пересборку контейнера.
+      HISTORY_DB: /app/data/history.db
+
+    volumes:
+      - history-data:/app/data
+
+    # Только для отладки с хоста. Боту порт не нужен — он ходит по сети compose.
+    ports:
+      - "127.0.0.1:8000:8000"
+
+    healthcheck:
+      # curl в slim-образе нет, поэтому проверяем стандартной библиотекой Python.
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/health', timeout=3)"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+
+    restart: unless-stopped
+
+volumes:
+  history-data:
+

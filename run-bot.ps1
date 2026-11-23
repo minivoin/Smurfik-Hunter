@@ -2,7 +2,7 @@
   Запускает Discord-бота (bot/bot.py).
 
   Перед запуском должен быть запущен Java-API (run-api.ps1) и заполнен .env:
-  DISCORD_TOKEN, при желании API_BASE_URL и DISCORD_GUILD_ID.
+  DISCORD_TOKEN, при желании API_BASE_URL, HISTORY_BASE_URL и DISCORD_GUILD_ID.
 
       powershell -ExecutionPolicy Bypass -File run-bot.ps1
 #>

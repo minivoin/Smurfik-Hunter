@@ -28,3 +28,9 @@ Thumbs.db
 __pycache__/
 *.pyc
 .venv/
+
+# Локальная база сервиса истории
+history/data/
+*.db
+*.db-wal
+*.db-shm

@@ -1,0 +1,27 @@
+# Что не тащим в контекст сборки.
+# Главное — секреты: .env не должен попасть в образ ни на одном этапе.
+
+.env
+.env.*
+
+# Git и IDE
+.git/
+.gitignore
+.gitattributes
+.vscode/
+.idea/
+
+# Результаты сборки и тестов
+target/
+*.class
+*.jar
+
+# Python
+__pycache__/
+*.pyc
+.venv/
+venv/
+
+# Локальные скрипты и документация в образах не нужны
+README.md
+run-*.ps1

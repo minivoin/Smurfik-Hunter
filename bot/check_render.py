@@ -88,6 +88,40 @@ RELATED_SAMPLE = {
     "diagnostics": ["пар с участием цели: 21", "порог показа: 0.15, порог группы: 0.40"],
 }
 
+HISTORY_SAMPLE = {
+    "ok": True,
+    "steamId": "76561198890900243",
+    "count": 2,
+    "items": [
+        {
+            "id": 2,
+            "checkedAt": "2026-11-19T12:34:56+00:00",
+            "steamId": "76561198890900243",
+            "seedName": "Черепаха Хлофф",
+            "depth": 2,
+            "group": ["76561198890900243", "76561198740323709", "76561198669833133"],
+            "groupSize": 3,
+            "groupConfidence": 0.422,
+            "candidatesChecked": 21,
+            "durationMs": 61234,
+            "cached": False,
+        },
+        {
+            "id": 1,
+            "checkedAt": "2026-11-18T20:00:00+00:00",
+            "steamId": "76561198890900243",
+            "seedName": "Черепаха Хлофф",
+            "depth": 1,
+            "group": [],
+            "groupSize": 0,
+            "groupConfidence": 0.0,
+            "candidatesChecked": 12,
+            "durationMs": 45000,
+            "cached": True,
+        },
+    ],
+}
+
 
 def load(name: str, fallback: dict) -> dict:
     path = ROOT / "target" / name
@@ -134,6 +168,10 @@ def main() -> None:
     for embed in bot.build_related_embeds(load("detect-sample.json", RELATED_SAMPLE)):
         index += 1
         check_embed(index, embed, problems)
+
+    print("\n=== История проверок ===")
+    index += 1
+    check_embed(index, bot.history_embed(load("history-sample.json", HISTORY_SAMPLE)), problems)
 
     print()
     if problems:
